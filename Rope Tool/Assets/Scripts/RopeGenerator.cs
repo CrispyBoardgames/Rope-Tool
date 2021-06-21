@@ -91,10 +91,22 @@ public class RopeGenerator : MonoBehaviour
         */
 
         Angle = 2 * (float)Mathf.PI / NumberSides;
-        Vector3[] lowerBaseVerts = CreateRingVertices(ropeEnd1.position, -1);
-        int[] lowerBaseTriangles = CreateRingBase(offset: 0, 1);
-        this.vertices = lowerBaseVerts;
-        this.triangles = lowerBaseTriangles;
+        Vector3[] lowerBaseVerts = CreateRingVertices(ropeEnd1.position, 1);    //Unexpected. Thought these would have the same culling direction :shrug: Find out later.
+        int[] lowerBaseTriangles = CreateRingBase(offset: 0, -1);
+        //this.vertices = lowerBaseVerts;
+        //this.triangles = lowerBaseTriangles;
+        Vector3[] secondVerts = CreateRingVertices(ropeEnd2.position, 1);
+        int[] secondTriangles = CreateRingBase(offset: 7, 1);
+
+        //Creating actual vector3[] and int[] arrays
+        this.vertices = new Vector3[(NumberSides + 1) * 2]; //Only set up for two rings
+        this.triangles = new int[(NumberSides * 3 * 2)];
+        //Add to mesh
+        lowerBaseVerts.CopyTo(this.vertices, 0);
+        secondVerts.CopyTo(this.vertices, 7);
+
+        lowerBaseTriangles.CopyTo(this.triangles, 0);
+        secondTriangles.CopyTo(this.triangles, (3 * NumberSides));
 
         UpdateRope();
     }
