@@ -70,6 +70,7 @@ public class RopeGenerator : MonoBehaviour
     Vector3[] verticesArr; //Specifies points in a 3D space
     int[] trianglesArr;    //Specifies the ordering in which vertices are connected to create a triangle. Read in sets of 3.
     Renderer rend;
+    Vector2[] uvsArr;
     #endregion
 
     #region MeshSettings
@@ -146,6 +147,14 @@ public class RopeGenerator : MonoBehaviour
 
         verticesArr = vertices.ToArray();
         trianglesArr = triangles.ToArray();
+
+        List<Vector2> uvs = new List<Vector2>();
+        //Create UVs
+        foreach (Vector3 vec3 in vertices)
+        {
+            uvs.Add(UV_Mapper(vec3));
+        }
+        uvsArr = uvs.ToArray();
         UpdateRope();
     }
 
@@ -272,6 +281,20 @@ public class RopeGenerator : MonoBehaviour
         return sides;
     }
 
+    //Creates UV mapping
+    //Using pseudocode from here: https://stackoverflow.com/questions/42628741/texture-mapping-on-a-cylinder-in-c-building-a-raytracer
+    Vector2 UV_Mapper(Vector3 point)
+    {
+        float theta = (float)Math.Atan2(point.y, point.x);
+
+        float rawU = (float)(theta / (2 * Math.PI));
+
+        float u = 1.0f - (rawU + 0.5f);
+
+        float v = point.y % 1;
+
+        return new Vector2(u, v);
+    }
     void UpdateRope()
     {
         mesh.Clear();
@@ -280,7 +303,8 @@ public class RopeGenerator : MonoBehaviour
         mesh.triangles = trianglesArr;
 
         mesh.RecalculateNormals();
-        rend.material.mainTextureScale = new Vector2(1, 1);
+        mesh.uv = uvsArr;
+        //rend.material.mainTextureScale = new Vector2(1, 1);
         return;
     }
 }
