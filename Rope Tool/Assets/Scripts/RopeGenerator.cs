@@ -3,24 +3,20 @@ using System.Collections.Generic;
 using UnityEngine;
 using System;
 
-
 [RequireComponent(typeof(MeshFilter))]
 [RequireComponent(typeof(MeshRenderer))]
 public class RopeGenerator : MonoBehaviour
 {
-
-    #region HelperClasses
-
-    //The Limited Int is an integer that has been "extended" to overflow at a certain Max and Min
-    //Does not check which is max and which is min. 
-    //If not withing range, default is Max.
-    //Be careful.
+    /*The Limited Int is an integer that has been "extended" to overflow at a certain Max and Min
+      Does not check which is max and which is min. 
+      If not withing range, default is Max.
+      Be careful.
+    */
     class LimitedInt
     {
         private int Max { get; set; }
         private int Min { get; set; }
         private int _Integer;
-
         public int Integer
         {
             get { return _Integer; }
@@ -61,9 +57,13 @@ public class RopeGenerator : MonoBehaviour
             else
                 _Integer = max;
         }
+        //No max nor min. Set to default values: system max, min int
+        public LimitedInt(int value)
+        {
+            Max = int.MaxValue; Min = int.MinValue;
+            _Integer = value;
+        }
     }
-    #endregion
-
 
     #region MeshData
     Mesh mesh;
@@ -76,11 +76,13 @@ public class RopeGenerator : MonoBehaviour
     #region MeshSettings
     public int NumberSides; //Used to set the quality of the rope.
     public Transform ropeEnd1, ropeEnd2; //(x,y,z) of two positions in space that dictate where the rope starts (1) and where it ends (2)
-    public Transform p1, p2;
+    public Transform p1, p2;    //Points used to create bezier curve.
     public float Radius;    //Specifies how wide the rope is.
     private float Angle;    //Calculated based off NumberSides
     public int Quality; //Quality of bezier curve
+    public float latitude;
     #endregion
+
     void Start()
     {
         mesh = new Mesh();
@@ -98,51 +100,34 @@ public class RopeGenerator : MonoBehaviour
         List<Vector3> vertices = new List<Vector3>();
         List<int> triangles = new List<int>();
 
-        //Offsets
+        //Offsets. Used to keep track of how many vertices there are / which ring we are currently on.
         int offset1 = 0, offset2 = 0;
         offset1 = offset2;
         offset2 = offset1 + NumberSides + 1;
 
         Angle = 2 * (float)Mathf.PI / NumberSides;
 
-
-        /*Vector3[] lowerBaseVerts = CreateRingVertices(ropeEnd1.position, 1);    //Unexpected. Thought these would have the same culling direction :shrug: Find out later.
-        int[] lowerBaseTriangles = CreateRingBase(offset: 0, -1);
-        //this.vertices = lowerBaseVerts;
-        //this.triangles = lowerBaseTriangles;
-        Vector3[] secondVerts = CreateRingVertices(ropeEnd2.position, 1);
-        //int[] secondTriangles = CreateRingBase(offset: 7, 1);
-
-        //Creating sides
-        int[] sidesTriangles = CreateSides(offset1, offset2);
-        //Creating actual vector3[] and int[] arrays
-        this.vertices = new Vector3[(NumberSides + 1) * 2]; //Only set up for two rings
-        this.triangles = new int[999];
-        //Add to mesh
-        lowerBaseVerts.CopyTo(this.vertices, 0);
-        secondVerts.CopyTo(this.vertices, 7);
-
-        lowerBaseTriangles.CopyTo(this.triangles, 0);
-        sidesTriangles.CopyTo(this.triangles, 3 * NumberSides);
-        //secondTriangles.CopyTo(this.triangles, (3 * NumberSides));
-        */
-        vertices.AddRange(CreateRingVertices(ropeEnd1.position, 1));
-        triangles.AddRange(CreateRingBase(offset: 0, -1));
-
-
+        //Sets amount of bezier curve points to produce.
         float unit = 1.0f / (float)Quality;
         float normalizedQuality = unit;
+
+        //Add in first ring and base.
+        vertices.AddRange(CreateRingVertices(ropeEnd1.position, BezierCurve.GetBezierPoint(normalizedQuality, ropeEnd1, p1, p2, ropeEnd2), 1));
+        triangles.AddRange(CreateRingBase(offset: 0, 1));
+
         for (int i = 0; i < Quality; ++i)
         {
-            vertices.AddRange(CreateRingVertices(BezierCurve.GetBezierPoint(normalizedQuality, ropeEnd1, p1, p2, ropeEnd2), 1));
+            //First bezier point is used to create ring. Second bezier point is used to angle the ring's vertices towards that point.
+            vertices.AddRange(CreateRingVertices(BezierCurve.GetBezierPoint(normalizedQuality, ropeEnd1, p1, p2, ropeEnd2), BezierCurve.GetBezierPoint(normalizedQuality + unit, ropeEnd1, p1, p2, ropeEnd2), -1));
             triangles.AddRange(CreateSides(offset1, offset2));
 
+            //Update current vertex count.
             offset1 = offset2;
             offset2 = offset1 + NumberSides + 1;
 
             normalizedQuality = normalizedQuality + unit;
         }
-        //Add final face
+        //Add final face. Does not connect with anything in front so we do not any vertices.
         triangles.AddRange(CreateRingBase(offset1, 1));
 
         verticesArr = vertices.ToArray();
@@ -158,12 +143,14 @@ public class RopeGenerator : MonoBehaviour
         UpdateRope();
     }
 
-    /*
+    /*Calculates a ring's vertices
         To calculate the vertices of a ring we use the parametric equation of a circle.
         x = (Center.x + Radius * cos(Angle * CullingDir * Integer + offset))
         y = (Center.y + Radius * sin(Angle * CullingDir * Integer + offset))
+
+        We then rotate the vertices to match the direction of the next point.
     */
-    private List<Vector3> CreateRingVertices(Vector3 center, int cullingDirection = -1, float angleOffset = 0.0f)
+    private List<Vector3> CreateRingVertices(Vector3 center, Vector3 nextPoint, int cullingDirection = -1)
     {
         List<Vector3> ringVertices = new List<Vector3>();
         ringVertices.Add(new Vector3(center.x, center.y, center.z));
@@ -173,14 +160,30 @@ public class RopeGenerator : MonoBehaviour
 
         for (int V = 1; V < NumberSides + 1; ++V)
         {
-            x = (center.x + Radius * Mathf.Cos((Angle * V) * cullingDirection + angleOffset));
-            y = (center.y + Radius * Mathf.Sin((Angle * V) * cullingDirection + angleOffset));
+            y = (center.y + Radius * Mathf.Cos((Angle * V) * cullingDirection));
+            x = (center.x + Radius * Mathf.Sin((Angle * V) * cullingDirection));
+
             ringVertices.Add(new Vector3(x, y, z));
+        }
+        //Rotate
+        Vector3 relativePos = nextPoint - center;
+        Quaternion lookAtAngle = Quaternion.LookRotation(relativePos);  //Get rotation towards next point relative to current point.
+
+        for (int i = 0; i < ringVertices.Count; ++i)
+        {
+            ringVertices[i] = lookAtAngle * (ringVertices[i] - center) + center;
+            //ringVertices - center normalizes. Multiplication handles the angle translation.  + center gets rid of normalization.
         }
         return ringVertices;
     }
 
-    //Creates a base by specifying the triangles.
+    /*Creates a base by specifying the triangles. See documentation for deeper explanation of algorithm.
+      In essence, we create a triangle by creating sets of three vertices. The numbering matches the order in which the vertices were added.
+      First, we add the center triangle. Then, the following vertex on the array/list (i.e. offset + 1). Finally, the second vertex after the center one (i.e. offset + 2)
+      We then create the following triangle. -> offset, offset +1 (+1), offset +2 (+1)
+      The values rollback so we make use of the Limited Integer class to set a max and a minimum.
+      The cullingDirection var allows it to move backwards.
+    */
     private List<int> CreateRingBase(int offset, int cullingDirection)
     {
         int MAX = NumberSides + offset;
@@ -200,82 +203,88 @@ public class RopeGenerator : MonoBehaviour
             if (T % 3 == 0) // On A
             {
                 triangles.Add(offset);
-                //Debug.Log("<color=red>" + triangles[T] + "</color>");
             }
             else if (T % 3 == 1) // On B
             {
                 B.Integer = b_Offset + (cullingDirection * b);
                 triangles.Add(B.Integer);
                 ++b;
-                //Debug.Log("<color=blue>" + triangles[T] + "</color>");
             }
             else // On C
             {
                 C.Integer = c_Offset.Integer + (cullingDirection * c);
                 triangles.Add(C.Integer);
                 ++c;
-                //Debug.Log("<color=green>" + triangles[T] + "</color>");
             }
         }
         return triangles;
     }
 
-    //Creates the sides connecting rings.
-    private List<int> CreateSides(int offset1, int offset2)
+    /*Creates the sides connecting rings.
+      The sides are created by making rectangles from the corresponding vertex to the next one. Naturally, the rectangle`s are each created with two triangles.
+      Because of this, we require two offsets. One for the 'current' ring, and another for the next one. The offsets represent how many vertices before each ring.
+      Culling Direction switches the ordering in which these connections are performed. That is, B and C, and F and Ct switch with reach other respectively.
+      See documentation for deeper explanation.
+      In all frankness, I believe this method could be improved. Not what it does,  but how it does it and being smarter with C# capabilities.
+    */
+    private List<int> CreateSides(int offset1, int offset2, bool CullingDir = true)    //True -> CW, False -> CCW
     {
         int a, b, c, f;
         a = 1; b = 1; c = 2; f = 2;
+
         int a_offset, b_offset, c_offset, f_offset;
         a_offset = f_offset = offset1;
         b_offset = c_offset = offset2;
-        int A = a_offset;
-        int B = b_offset;
+
+        LimitedInt A = new LimitedInt(a_offset);
+        LimitedInt B = new LimitedInt(b_offset);
         LimitedInt C = new LimitedInt(offset2 + NumberSides, offset2 + 1, c_offset);
         LimitedInt F = new LimitedInt(offset1 + NumberSides, offset1 + 1, f_offset);
 
         List<int> sides = new List<int>();
 
+        //Determines CW/CCW in which the triangle is created, i.e. culling direction.
+        int on_A = 0, on_B = 2, on_C = 1, on_At = 3, on_F = 4, on_Ct = 5;
+        //Default is set
+        if (!CullingDir)
+        {
+            on_B = 1; on_C = 2; //Switch
+            on_F = 5; on_Ct = 4;
+        }
+
         for (int T = 0; T < NumberSides * 2 * 3; ++T)
         {
-            if (T % 6 == 0)  //On A
+            if (T % 6 == on_A)
             {
-                A = a_offset + a;
-                sides.Add(A);
-                Debug.Log("<color=red>" + sides[T] + "</color>");
+                A.Integer = a_offset + a;
+                sides.Add(A.Integer);
             }
-            else if (T % 6 == 2) //On B
+            else if (T % 6 == on_B)
             {
-                B = b_offset + b;
-                sides.Add(B);
+                B.Integer = b_offset + b;
+                sides.Add(B.Integer);
                 ++b;
-                Debug.Log("<color=red>" + sides[T] + "</color>");
             }
-            else if (T % 6 == 1) //On C
+            else if (T % 6 == on_C)
             {
                 C.Integer = c_offset + c;
                 sides.Add(C.Integer);
-                Debug.Log("<color=red>" + sides[T] + "</color>");
             }
-            else if (T % 6 == 3) // On A'
+            else if (T % 6 == on_At)
             {
-                sides.Add(A);
+                sides.Add(A.Integer);
                 ++a;
-                Debug.Log("<color=blue>" + sides[T] + "</color>");
             }
-            else if (T % 6 == 4) //On C'
+            else if (T % 6 == on_F) //On F
             {
                 F.Integer = f_offset + f;
                 sides.Add(F.Integer);
                 ++f;
-                Debug.Log("<color=blue>" + sides[T] + "</color>");
-
             }
-            else //on F
+            else if (T % 6 == on_Ct)//on C'
             {
-
                 sides.Add(C.Integer);
                 ++c;
-                Debug.Log("<color=blue>" + sides[T] + "</color>");
             }
         }
         return sides;
@@ -295,6 +304,8 @@ public class RopeGenerator : MonoBehaviour
 
         return new Vector2(u, v);
     }
+
+    //Adds the finalized vertices, triangles, and UVs to the mesh object.
     void UpdateRope()
     {
         mesh.Clear();
@@ -304,7 +315,6 @@ public class RopeGenerator : MonoBehaviour
 
         mesh.RecalculateNormals();
         mesh.uv = uvsArr;
-        //rend.material.mainTextureScale = new Vector2(1, 1);
         return;
     }
 }
