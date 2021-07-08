@@ -3,9 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using System;
 
-[RequireComponent(typeof(MeshFilter))]
-[RequireComponent(typeof(MeshRenderer))]
-public class RopeGenerator : MonoBehaviour
+public class RopeGenerator
 {
     /*The Limited Int is an integer that has been "extended" to overflow at a certain Max and Min
       Does not check which is max and which is min. 
@@ -71,26 +69,35 @@ public class RopeGenerator : MonoBehaviour
     int[] trianglesArr;    //Specifies the ordering in which vertices are connected to create a triangle. Read in sets of 3.
     Renderer rend;
     Vector2[] uvsArr;
+    private Material meshMaterial;
     #endregion
 
     #region MeshSettings
-    public int NumberSides; //Used to set the quality of the rope.
-    public Transform ropeEnd1, ropeEnd2; //(x,y,z) of two positions in space that dictate where the rope starts (1) and where it ends (2)
-    public Transform p1, p2;    //Points used to create bezier curve.
-    public float Radius;    //Specifies how wide the rope is.
+    private int NumberSides; //Used to set the quality of the rope.
+    //public Transform ropeEnd1, ropeEnd2; 
+    //public Transform p1, p2;    //Points used to create bezier curve.
+    private List<Transform> ropePoints;//(x,y,z) of two positions in space that dictate where the rope starts (1) and where it ends (2)
+    private float Radius;    //Specifies how wide the rope is.
     private float Angle;    //Calculated based off NumberSides
-    public int Quality; //Quality of bezier curve
-    public float latitude;
+    private int Quality; //Quality of bezier curve
     #endregion
 
-    void Start()
+    public RopeGenerator(int numSides, float rad, int curvQuality, List<Transform> points, Material mat, GameObject obj)
     {
+        NumberSides = numSides;
+        Radius = rad;
+        Quality = curvQuality;
+        ropePoints = points;
+        meshMaterial = mat;
         mesh = new Mesh();
         //Create a new instance of a Mesh and set the mesh component that this is attached to.
-        GetComponent<MeshFilter>().mesh = mesh;
+        obj.GetComponent<MeshFilter>().mesh = mesh;
+        rend = obj.GetComponent<Renderer>();
+        rend.material = mat;
+    }
 
-        rend = GetComponent<Renderer>();
-
+    public void CreateRope()
+    {
         /*Calculate angle between each vertex.
           A shape (triangle, square, pentagon, hexagon, etc) can be thought of as points on a circle 
           equally spaced apart by an angle. This angle is determined by 2Pi / Number of Sides .
@@ -112,13 +119,14 @@ public class RopeGenerator : MonoBehaviour
         float normalizedQuality = unit;
 
         //Add in first ring and base.
-        vertices.AddRange(CreateRingVertices(ropeEnd1.position, BezierCurve.GetBezierPoint(normalizedQuality, ropeEnd1, p1, p2, ropeEnd2), 1));
-        triangles.AddRange(CreateRingBase(offset: 0, 1));
+        //vertices.AddRange(CreateRingVertices(ropeEnd1.position, BezierCurve.GetBezierPoint(normalizedQuality, ropeEnd1, p1, p2, ropeEnd2), 1));
+        vertices.AddRange(CreateRingVertices(ropePoints[0].transform.position, BezierCurve.GetBezierPointCubic(normalizedQuality, ropePoints), -1));
+        triangles.AddRange(CreateRingBase(offset: 0, -1));
 
         for (int i = 0; i < Quality; ++i)
         {
             //First bezier point is used to create ring. Second bezier point is used to angle the ring's vertices towards that point.
-            vertices.AddRange(CreateRingVertices(BezierCurve.GetBezierPoint(normalizedQuality, ropeEnd1, p1, p2, ropeEnd2), BezierCurve.GetBezierPoint(normalizedQuality + unit, ropeEnd1, p1, p2, ropeEnd2), -1));
+            vertices.AddRange(CreateRingVertices(BezierCurve.GetBezierPointCubic(normalizedQuality, ropePoints), BezierCurve.GetBezierPointCubic(normalizedQuality + unit, ropePoints), -1));
             triangles.AddRange(CreateSides(offset1, offset2));
 
             //Update current vertex count.
