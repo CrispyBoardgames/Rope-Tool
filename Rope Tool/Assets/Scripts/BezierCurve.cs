@@ -6,26 +6,6 @@ using System;
 
 public static class BezierCurve
 {
-    //public Transform p0, p1, p2, p3;
-    // Start is called before the first frame update
-    /*void Start()
-    {
-        Vector3[] bezierPoints = new Vector3[100];
-        GameObject[] spheres = new GameObject[100];
-        float t = 0.0f;
-        //Create points along curve
-        for (int i = 0; i < 100; ++i)
-        {
-            bezierPoints[i] = GetBezierPoint(t);
-            t = t + 0.01f;
-        }
-        //Create spheres to visualize points
-        for (int k = 0; k < 100; ++k)
-        {
-            spheres[k] = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            spheres[k].transform.position = bezierPoints[k];
-        }
-    }*/
 
     public static Vector3 GetBezierPointCubic(float t, List<Transform> points)
     {

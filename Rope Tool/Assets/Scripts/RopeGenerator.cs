@@ -74,8 +74,6 @@ public class RopeGenerator
 
     #region MeshSettings
     private int NumberSides; //Used to set the quality of the rope.
-    //public Transform ropeEnd1, ropeEnd2; 
-    //public Transform p1, p2;    //Points used to create bezier curve.
     private List<Transform> ropePoints;//(x,y,z) of two positions in space that dictate where the rope starts (1) and where it ends (2)
     private float Radius;    //Specifies how wide the rope is.
     private float Angle;    //Calculated based off NumberSides
@@ -119,7 +117,6 @@ public class RopeGenerator
         float normalizedQuality = unit;
 
         //Add in first ring and base.
-        //vertices.AddRange(CreateRingVertices(ropeEnd1.position, BezierCurve.GetBezierPoint(normalizedQuality, ropeEnd1, p1, p2, ropeEnd2), 1));
         vertices.AddRange(CreateRingVertices(ropePoints[0].transform.position, BezierCurve.GetBezierPointCubic(normalizedQuality, ropePoints), -1));
         triangles.AddRange(CreateRingBase(offset: 0, -1));
 

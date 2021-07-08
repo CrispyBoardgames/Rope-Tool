@@ -5,34 +5,35 @@ using UnityEditor;
 public class Rope_Mesh_Editor : EditorWindow
 {
     int ropeID = 1;
-    string ropeObjectName = "Rope1";
+    string ropeObjectName = "Rope";
 
-    GameObject ropeObject; //reference to the object
+    //GameObject ropeObject; //reference to the object
     public List<GameObject> points;
     int numPoints = 4;
     int baseQuality = 7; //Number of sides. Minimum of 3
     const int MIN_BASE_QUALITY = 3;
     const int MAX_BASE_QUALITY = 1000;
-    Vector3 p0, p1, p2, p3; //p0 is start, p3 is end 
+    //Vector3 p0, p1, p2, p3; //p0 is start, p3 is end 
     float radius = 1.0f;
     const float MIN_RADIUS = 0.001f;
     const float MAX_RADIUS = 1000f;
     int lengthQuality = 5;
     const int MIN_LEN_QUALITY = 1;
     const int MAX_LEN_QUALITY = 10000;
+    Material mat;
 
     //GUI enables
     bool SpawnPointsBool = true;
     bool DeletePointsBool = false;
     bool CreateMeshBool = false;
     //Mesh material
-    Material mat;
     [MenuItem("Tools/Rope Generator")]
     public static void ShowWindow()
     {
         GetWindow(typeof(Rope_Mesh_Editor));
     }
 
+    //Called every time an event on the GUI occurs.
     private void OnGUI()
     {
         GUILayout.Label("Create Rope Object", EditorStyles.boldLabel);
@@ -46,6 +47,7 @@ public class Rope_Mesh_Editor : EditorWindow
         mat = (Material)EditorGUILayout.ObjectField(mat, typeof(Material), true);
         GUILayout.Space(25f);
 
+        //If false, it grays out the button.
         GUI.enabled = SpawnPointsBool;
         if (GUILayout.Button("Spawn Curve Points"))
         {
@@ -91,10 +93,8 @@ public class Rope_Mesh_Editor : EditorWindow
             GameObject tempPoint = Instantiate(pointPrefab, sceneCameraTransform.position + sceneCameraTransform.forward * 2.5f + sceneCameraTransform.right * (float)i, Quaternion.identity);
             ObjectLabel numberHandle = tempPoint.GetComponent(typeof(ObjectLabel)) as ObjectLabel;
             numberHandle.PointNumber = i;
-            //tempSphere.transform.localScale -= new Vector3(0.75f, 0.75f, 0.75f);
 
             //Move spheres in front of scene view camera and spawn to the right.
-            //tempSphere.transform.position = sceneCameraTransform.position + sceneCameraTransform.forward * 2.5f + sceneCameraTransform.right * (float)i;
             points.Add(tempPoint);
         }
         return;
@@ -117,8 +117,8 @@ public class Rope_Mesh_Editor : EditorWindow
         {
             transPoints.Add(obj.transform);
         }
-        GameObject ropeObject = new GameObject(ropeObjectName, typeof(MeshFilter), typeof(MeshRenderer));
-
+        GameObject ropeObject = new GameObject(ropeObjectName + ropeID.ToString(), typeof(MeshFilter), typeof(MeshRenderer));
+        ++ropeID;
         RopeGenerator rg = new RopeGenerator(baseQuality, radius, lengthQuality, transPoints, mat, ropeObject);
         rg.CreateRope();
         DeletePoints();
